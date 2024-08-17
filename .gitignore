@@ -6,3 +6,5 @@ mingw-build
 vs-build
 .vscode
 .cache
+cmake-build-debug
+.idea

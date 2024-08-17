@@ -1,23 +1,46 @@
-# PGE Template Project v2.25
+# Walkies Game
 
-This is a template project for use with the [olcPixelGameEngine](https://github.com/OneLoneCoder/olcPixelGameEngine). It serves as a jumping off point for you to build your masterpiece application.
+This game was initially developed in [PGEtinker](https://pgetinker.com/), and then copied over to a local project, based on Moros1138's [olcPixelGameEngine-ProjectTemplate](https://github.com/Moros1138/pge-template-project)
 
-## Features
+You can play it online, right in your browser, here: https://pgetinker.com/s/X2pdaNPGKH  
+But you can also build it yourself, locally, if you prefer:
 
-CMake script for cross-platform building. Tested environments include:
+## Table of Contents
+* [Build instructions](#build-instructions)
+  * [Preparing your Environment](#preparing-your-environment)
+  * [Linux](#linux)
+    * [Requirements](#requirements)
+    * [Ubuntu and Ubuntu based distros](#ubuntu-and-ubuntu-based-distros)
+    * [Arch, Manjaro, and Arch based distros](#arch-manjaro-and-arch-based-distros)
+  * [MacOS](#macos)
+    * [Requirements](#requirements-1)
+  * [Windows](#windows)
+    * [Requirements](#requirements-2)
+  * [MinGW](#mingw)
+  * [Visual Studio / NMake](#visual-studio--nmake)
+* [Running](#runningrunning)
+  * [Linux / MacOS (with default toolchains)](#linux--macos-with-default-toolchains)
+  * [MacOS (with XCode)](#macos-with-xcode)
+  * [Linux / MacOS (Emscripten)](#linux--macos-emscripten)
+  * [Windows (MinGW)](#windows-mingw)
+  * [Windows (NMake)](#windows-nmake)
+  * [Windows (Visual Studio)](#windows-visual-studio)
+
+## Build instructions
+This project is built using a CMake script for cross-platform building. Tested environments include:
 
 * Linux - with UNIX Makefiles, GNU GCC and LLVM Clang
 * MacOS - with UNIX Makefiles, XCode and LLVM Clang
 * Windows - with Visual Studio, NMake Makefiles, and MinGW Makefiles
 * Emscripten - with UNIX Makefiles, NMake Makefiles, and MinGW Makefiles
 
-# Preparing your Environment
+### Preparing your Environment
 
 The instructions to prepare your environment have been broken up for convenience. Simply follow the instructions that are pertinent to your situation.
 
-## Linux
+### Linux
 
-### **Requirements**
+#### Requirements
 
 * C/C++ Toolchain for your Linux distro
 * CMake
@@ -25,7 +48,7 @@ The instructions to prepare your environment have been broken up for convenience
 * libpng
 * Mesa OpenGL Development Libraries
 
-### **Ubuntu and Ubuntu based distros**
+#### Ubuntu and Ubuntu based distros
 
 Update your package manager by issuing the following command:
 
@@ -39,15 +62,15 @@ Install toolchain and required software by issuing the following command:
 sudo apt install build-essential cmake git libpng-dev libglu1-mesa-dev
 ```
 
-### **Arch, Manjaro, and Arch based distros**
+#### Arch, Manjaro, and Arch based distros
 
 ```
 sudo pacman -Sy base-devel cmake git libpng mesa
 ```
 
-## MacOS
+### MacOS
 
-### **Requirements**
+#### Requirements
 
 * XCode
 * [Homebrew Package Manager](https://brew.sh/)
@@ -70,9 +93,9 @@ brew install cmake
 brew install git
 ```
 
-## Windows
+### Windows
 
-### Requirements
+#### Requirements
 
 * Chocolatey
 * CMake
@@ -100,22 +123,22 @@ cmake --version
 
 If you recieve an ``command not found`` error double check that you have actually added CMake to your path.
 
-## MinGW
+### MinGW
 
 Install MinGW via ``choco install mingw`` from Powershell as Administrator
 
 
-## Visual Studio / NMake
+### Visual Studio / NMake
 
 Download and install [Visual Studio: Community Edition](https://visualstudio.microsoft.com/downloads/).
 
 Ensure that you have installed the Desktop C++ option!
 
-# **Usage**
+## RunningRunning
 
 IF YOU HAVE MADE IT HERE AND YOU HAVE NOT SET UP YOUR DEVELOPMENT ENVIRONMENT, GO BACK UP AND READ THE INSTRUCTIONS AGAIN!
 
-## Linux / MacOS (with default toolchains)
+### Linux / MacOS (with default toolchains)
 
 Open a Terminal and navigate to the directory which you downloaded the project. Issue the following command:
 
@@ -133,7 +156,7 @@ The compiled binary will be located in ``linux-build/bin`` directory.
 
 **NOTE: if you're executing the program, ensure you have the correct working directory, which contains the executable!**
 
-## MacOS (with XCode)
+### MacOS (with XCode)
 
 Open a Terminal and navigate to the directory which you downloaded the project. Issue the following command:
 
@@ -143,7 +166,7 @@ cmake . -B xcode-build -G "xcode"
 
 CMake will generate an XCode project in ``xcode-build``. You can use it like any other XCode project.
 
-## Linux / MacOS (Emscripten)
+### Linux / MacOS (Emscripten)
 
 **These instructions assume you have Emscripten installed, activated, and have the environment set up for an active Terminal.**
 
@@ -169,7 +192,7 @@ emrun path/to/build/bin/PROJECTNAME.html
 
 This command should launch the project in your default web browser.
 
-## Windows (MinGW)
+### Windows (MinGW)
 
 Open the ``Command Prompt`` prompt and navigate to the directory which you downloaded the project. Issue the following command:
 
@@ -187,7 +210,7 @@ The compiled binary will be located in the ``mingw-build/bin`` directory.
 
 **NOTE: if you're executing the program, ensure you have the correct working directory, which contains the executable!**
 
-## Windows (NMake)
+### Windows (NMake)
 
 Open the ``x64 Native Tools Command Prompt for VS 2022`` prompt and navigate to the directory which you downloaded the project. Issue the following command:
 
@@ -205,7 +228,7 @@ The compiled binary will be located in ``nmake-build/bin`` directory.
 
 **NOTE: if you're executing the program, ensure you have the correct working directory, which contains the executable!**
 
-## Windows (Visual Studio)
+### Windows (Visual Studio)
 
 Open the ``Command Prompt`` prompt and navigate to the directory which you downloaded the project. Issue the following command:
 

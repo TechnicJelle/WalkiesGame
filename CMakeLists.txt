@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.10)
 #
 #   - dictates the output executable filename
 #
-project(TestApp)
+project(WalkiesGame)
 
 # Options you can set via command-line
 option(HAS_TERMINAL "Show a terminal window for STDOUT/STDERR" ON)
@@ -24,13 +24,6 @@ set(C_CXX_SOURCES_DIR "src")
 #   - the place where your C/C++ header files are located
 #
 set(C_CXX_HEADERS_DIR "include")
-
-#
-# ASSETS_DIR
-#
-#   - the place where your pictures, sound files, etc.. live
-#
-set(ASSETS_DIR "assets")
 
 ##########################################################################
 # DO NOT EDIT BELOW THIS LINE UNLESS YOU KNOW WHAT YOU ARE DOING!!       #
@@ -66,7 +59,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_PROFILE "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_PROFILE "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_PROFILE "${CMAKE_BINARY_DIR}/bin")
 
-set(SOURCE_DATA_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/${ASSETS_DIR})
 set(SOURCE_CXX_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${C_CXX_HEADERS_DIR})
 set(SOURCE_CXX_SRC_DIR     ${CMAKE_CURRENT_SOURCE_DIR}/${C_CXX_SOURCES_DIR})
 
@@ -246,8 +238,7 @@ if (EMSCRIPTEN)
             -sMAX_WEBGL_VERSION=2
             -sMIN_WEBGL_VERSION=2
             -sUSE_LIBPNG=1
-            -sLLD_REPORT_UNDEFINED
-            --preload-file ${SOURCE_DATA_DIR}@assets)
+            -sLLD_REPORT_UNDEFINED)
     else()
         target_link_options(
             ${OutputExecutable}
@@ -266,27 +257,4 @@ endif() # Emscripten
 ######################################################################
 if(IS_DIRECTORY ${SOURCE_CXX_INCLUDE_DIR})
     include_directories(${SOURCE_CXX_INCLUDE_DIR})
-endif()
-
-######################################################################
-# Copy assets/ directory target
-######################################################################
-
-set(DATA_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bin/${ASSETS_DIR})
-
-file(GLOB_RECURSE src_data_files
-    RELATIVE ${SOURCE_DATA_DIR}/ "${SOURCE_DATA_DIR}/*.*" "${SOURCE_DATA_DIR}/*")
-foreach(fn ${src_data_files})
-    add_custom_command(
-        OUTPUT ${DATA_OUTPUT_DIR}/${fn}
-        COMMAND ${CMAKE_COMMAND} -E copy ${SOURCE_DATA_DIR}/${fn} ${DATA_OUTPUT_DIR}/${fn}
-        MAIN_DEPENDENCY ${SOURCE_DATA_DIR}/${fn})
-    list(APPEND out_data_files ${DATA_OUTPUT_DIR}/${fn})
-endforeach()
-
-add_custom_target(copy_data DEPENDS ${out_data_files})
-
-# Copy Asset Files, if not Emscripten
-if (NOT EMSCRIPTEN)
-    add_dependencies(${OutputExecutable} copy_data)
 endif()

@@ -1,364 +1,251 @@
-#include "olcPixelGameEngine.h"
-#include "olcPGEX_MiniAudio.h"
+#include <numbers>
+
+#define OLC_PGE_APPLICATION
+#include "olcPixelGameEngine.hpp"
 
 
-class OneLoneCoder_Asteroids : public olc::PixelGameEngine
-{
+class WalkiesGame : public olc::PixelGameEngine {
+//utils
 public:
-    OneLoneCoder_Asteroids()
-    {
-        sAppName = "Asteroids";
-    }
+	void DrawRay(olc::vf2d origin, olc::vf2d dir, olc::Pixel colour = olc::WHITE) {
+		DrawLine(origin, origin + dir, colour);
+	}
+
+	float map(float value,
+		float start1, float stop1,
+		float start2, float stop2)
+	{
+		//Processing
+		return start2 + (stop2 - start2) * ((value - start1) / (stop1 - start1));
+	}
+
+	olc::vf2d RotateVector(olc::vf2d vec, float angleRad) {
+		float temp = vec.x;
+		vec.x = vec.x * cosf(angleRad) - vec.y * sinf(angleRad);
+		vec.y = temp * sinf(angleRad) + vec.y * cosf(angleRad);
+		return vec;
+	}
+
+	float VectorDist(olc::vf2d a, olc::vf2d b) {
+		olc::vf2d d = a - b;
+		return d.mag();
+	}
+
+	void DrawStringCentered(const std::string &text, int textScale = 4, olc::vf2d offset = {0, 0}, olc::Pixel colour = olc::WHITE) {
+		olc::vf2d textSize = GetTextSize(text) * textScale;
+		DrawString(GetScreenSize() / 2 - textSize / 2 - offset + olc::vf2d(textScale, textScale), text, olc::BLACK, textScale); //shadow
+		DrawString(GetScreenSize() / 2 - textSize / 2 - offset, text, colour, textScale);
+	}
+
+public:
+	WalkiesGame() { sAppName = "Walkies"; }
 
 private:
-    struct sSpaceObject
-    {
-        int nSize;
-        float x;
-        float y;
-        float dx;
-        float dy;
-        float angle;
-    };
+	enum class GameState {
+		COUNTDOWN,
+		PLAYING,
+		END
+	};
 
-    std::vector<sSpaceObject> vecAsteroids;
-    std::vector<sSpaceObject> vecBullets;
-    sSpaceObject player;
-    bool bDead = false;
-    int nScore = 0;
+	int countDown = 3;
 
-    std::vector<std::pair<float, float>> vecModelShip;
-    std::vector<std::pair<float, float>> vecModelAsteroid;
-    
-    std::map<std::string, olc::Renderable*> gfx;
-    std::map<std::string, int> sfx;
+	float accTime = 0.0f;
+	float groundHeight = 70;
+	float maxSteppyDist = 30;
+	float maxFromBodyDist = maxSteppyDist * 1.1f;
 
-    olc::MiniAudio audio;
-    
+	float headRadius = 10;
+	float footSize = 3;
+	olc::vf2d poppyOrigin = {headRadius * 2.0f + footSize, 150};
+	olc::vf2d torsoOrigin = {0, headRadius};
+	float torsoHeight = 40;
+	float armWiggleSpeed = 5.0f;
+	float armWiggleAmp = 0.02f;
+	olc::vf2d armsOrigin = {0, headRadius * 2.0f};
+	olc::vf2d armsDir = {-headRadius * 1.5f, 0}; //x is arm length
+	olc::vf2d legsOrigin = {0, torsoHeight};
+
+	olc::vf2d leftFoot = poppyOrigin + legsOrigin + olc::vf2d(-10, 20);
+	olc::vf2d rightFoot = poppyOrigin + legsOrigin + olc::vf2d(10, 20);
+
+	olc::vf2d leftFootClickPos = {0, 0};
+	olc::vf2d rightFootClickPos = {0, 0};
+
+	bool leftFootClicked = false;
+	bool rightFootClicked = false;
+
+	GameState gameState = GameState::COUNTDOWN;
+
+	float scoreTime = -1;
+
 public:
+	bool OnUserCreate() override {
+		return true;
+	}
 
-    bool OnUserCreate() override
-    {
-        auto loadGraphic = [&](const std::string& key, const std::string& filepath)
-        {
-            olc::Renderable* renderable = new olc::Renderable();
-            renderable->Load(filepath);
-            gfx[key] = renderable;
-        };
-        
-        auto loadSound = [&](const std::string& key, const std::string& filepath)
-        {
-            sfx[key] = audio.LoadSound(filepath);
-        };
+	bool OnUserUpdate(float fElapsedTime) override {
+		accTime += fElapsedTime;
+		float timeLeft = countDown - accTime;
 
-        loadGraphic("background", "assets/gfx/space.png");
-        
-        loadSound("bg-music",     "assets/sounds/bg-music.wav");
-        loadSound("laser",        "assets/sounds/Laser_Shoot11.wav");
-        loadSound("explosion",    "assets/sounds/Explosions1.wav");
-        loadSound("lose",         "assets/sounds/lose9.wav");
-        loadSound("thruster",     "assets/sounds/thruster.wav");
+		//background
+		Clear(olc::Pixel(52, 210, 245));
+		FillRect(0, ScreenHeight() - groundHeight, ScreenWidth(), groundHeight, olc::Pixel(63, 191, 46));
+		
+		//sun
+		olc::vf2d sunOrigin = {(float)ScreenWidth(), 0};
+		FillCircle(sunOrigin, 30 + sinf(accTime*0.3f)*3, olc::YELLOW);
 
-        vecModelShip = 
-        {
-            { 0.0f, -5.0f},
-            {-2.5f, +2.5f},
-            {+2.5f, +2.5f}
-        }; // A simple Isoceles Triangle
-
-        // Create a "jagged" circle for the asteroid. It's important it remains
-        // mostly circular, as we do a simple collision check against a perfect
-        // circle.
-        int verts = 20;
-        for (int i = 0; i < verts; i++)
-        {
-            float noise = (float)rand() / (float)RAND_MAX * 0.4f + 0.8f;
-            vecModelAsteroid.push_back(std::make_pair(noise * sinf(((float)i / (float)verts) * 6.28318f), 
-                                                 noise * cosf(((float)i / (float)verts) * 6.28318f)));
-        }
-
-        backgroundLayer = CreateLayer();
-        EnableLayer(backgroundLayer, true);
-        
-        SetDrawTarget(backgroundLayer);
-        DrawSprite(0,0, gfx.at("background")->Sprite());
-        SetDrawTarget(nullptr);
-
-        ResetGame();
-        audio.Play(sfx.at("bg-music"), true);
-
-        return true;
-    }
-
-    bool OnUserDestroy() override
-    {
-        for(auto it = gfx.begin(); it != gfx.end(); ++it)
-        {
-            delete it->second;
-        }
-
-        return true;
-    }
+		//sun rays
+		int sides = 30;
+		for (int i = 0; i < sides; i++) {
+			olc::vf2d ray = olc::vf2d(-42 - sinf(accTime*0.3f)*4, 0);
+			ray = RotateVector(ray, map((float)i, 0.0f, (float)sides, 0, std::numbers::pi_v<float>*2.0f) + accTime*0.1f);
+			DrawRay(sunOrigin + ray, ray, olc::YELLOW);
+		}
 
 
-    int backgroundLayer = -1;
+		//head
+		DrawCircle(poppyOrigin, headRadius);
 
-    void ResetGame()
-    {
-        // Initialise Player Position
-        player.x = ScreenWidth() / 2.0f;
-        player.y = ScreenHeight() / 2.0f;
-        player.dx = 0.0f;
-        player.dy = 0.0f;
-        player.angle = 0.0f;
+		//torso
+		DrawLine(poppyOrigin + torsoOrigin, poppyOrigin + legsOrigin);
 
-        vecBullets.clear();
-        vecAsteroids.clear();
+		//arms
+		armsDir = RotateVector(armsDir, sinf(accTime * armWiggleSpeed) * armWiggleAmp);
+		DrawRay(poppyOrigin + armsOrigin, armsDir);
+		DrawRay(poppyOrigin + armsOrigin, -armsDir);
 
-        // Put in two asteroids
-        vecAsteroids.push_back({ (int)16, player.x - 80.0f, player.y,  10.0f,  40.0f, 0.0f });
-        vecAsteroids.push_back({ (int)16, player.x + 80.0f, player.y, -10.0f, -40.0f, 0.0f });
+		//feet
+		//foot: left
+		{
+			if (gameState == GameState::PLAYING) {
+				leftFootClicked = GetMouse(olc::Mouse::LEFT).bHeld
+					&& VectorDist(GetMousePos(), leftFoot) < (footSize + 1)
+					&& !rightFootClicked;
 
-        // Reset game
-        bDead = false;
-        nScore = false;
-    }
+				if (leftFootClicked && GetMouse(olc::Mouse::LEFT).bPressed) {
+					leftFootClickPos = GetMousePos();
+				}
 
-    // Implements "wrap around" for various in-game sytems
-    void WrapCoordinates(float ix, float iy, float &ox, float &oy)
-    {
-        ox = ix;
-        oy = iy;
-        if (ix < 0.0f)	ox = ix + (float)ScreenWidth();
-        if (ix >= (float)ScreenWidth())	ox = ix - (float)ScreenWidth();
-        if (iy < 0.0f)	oy = iy + (float)ScreenHeight();
-        if (iy >= (float)ScreenHeight()) oy = iy - (float)ScreenHeight();
-    }
+				//show limits
+				if (leftFootClickPos != olc::vf2d(0, 0)) {
+					DrawCircle(leftFootClickPos, maxSteppyDist, olc::RED);
+					DrawCircle(poppyOrigin + legsOrigin, maxFromBodyDist, olc::DARK_BLUE);
+				}
+			}
 
-    // Overriden to handle toroidal drawing routines
-    bool Draw(int x, int y, olc::Pixel col = olc::WHITE) override
-    {
-        float fx, fy;
-        WrapCoordinates(x, y, fx, fy);		
-        return olc::PixelGameEngine::Draw(fx, fy, col);
-    }
+			//apply new position while taking limits into account
+			if (leftFootClicked) {
+				if (VectorDist(GetMousePos(), leftFootClickPos) < maxSteppyDist
+					&& VectorDist(GetMousePos(), poppyOrigin + legsOrigin) < maxFromBodyDist) {
+					leftFoot = GetMousePos();
+				}
+				FillCircle(leftFoot, footSize);
+			} else {
+				DrawCircle(leftFoot, footSize);
+			}
+		}
 
-    bool IsPointInsideCircle(float cx, float cy, float radius, float x, float y)
-    {
-        return sqrt((x-cx)*(x-cx) + (y-cy)*(y-cy)) < radius;
-    }
+		//foot: right
+		{
+			if (gameState == GameState::PLAYING) {
+				rightFootClicked = GetMouse(olc::Mouse::LEFT).bHeld 
+					&& VectorDist(GetMousePos(), rightFoot) < (footSize + 1)
+					&& !leftFootClicked;
 
-    // Called by olcConsoleGameEngine
-    bool OnUserUpdate(float fElapsedTime) override
-    {
-        if (bDead)
-            ResetGame();
-        
-        // Clear Screen
-        Clear(olc::BLANK);
+				if (rightFootClicked && GetMouse(olc::Mouse::LEFT).bPressed) {
+					rightFootClickPos = GetMousePos();
+				}
 
-        // Steer Ship
-        if (GetKey(olc::LEFT).bHeld)
-            player.angle -= 5.0f * fElapsedTime;
-        if (GetKey(olc::RIGHT).bHeld)
-            player.angle += 5.0f * fElapsedTime;
+				//show limits
+				if (rightFootClickPos != olc::vf2d(0, 0)) {
+					DrawCircle(rightFootClickPos, maxSteppyDist, olc::RED);
+					DrawCircle(poppyOrigin + legsOrigin, maxFromBodyDist, olc::DARK_BLUE);
+				}
+			}
 
-        // Thrust? Apply ACCELERATION
-        if (GetKey(olc::UP).bHeld)
-        {
-            // ACCELERATION changes VELOCITY (with respect to time)
-            player.dx += sin(player.angle) * 20.0f * fElapsedTime;
-            player.dy += -cos(player.angle) * 20.0f * fElapsedTime;
-        }
+			//apply new position while taking limits into account
+			if (rightFootClicked) {
+				if (VectorDist(GetMousePos(), rightFootClickPos) < maxSteppyDist
+					&& VectorDist(GetMousePos(), poppyOrigin + legsOrigin) < maxFromBodyDist) {
+					rightFoot = GetMousePos();
+				}
+				FillCircle(rightFoot, footSize);
+			} else {
+				DrawCircle(rightFoot, footSize);
+			}
+		}
 
-        if(GetKey(olc::UP).bPressed)
-            audio.Play(sfx.at("thruster"), true);
-        
-        if(GetKey(olc::UP).bReleased)
-            audio.Stop(sfx.at("thruster"));
+		//feet reset
+		if (GetMouse(olc::Mouse::LEFT).bReleased) {
+			leftFootClickPos = {0, 0};
+			rightFootClickPos = {0, 0};
+			leftFootClicked = false;
+			rightFootClicked = false;
+		}
 
-        // VELOCITY changes POSITION (with respect to time)
-        player.x += player.dx * fElapsedTime;
-        player.y += player.dy * fElapsedTime;
+		//legs
+		DrawLine(poppyOrigin + legsOrigin, leftFoot);
+		DrawLine(poppyOrigin + legsOrigin, rightFoot);
 
-        // Keep ship in gamespace
-        WrapCoordinates(player.x, player.y, player.x, player.y);
 
-        // Check ship collision with asteroids
-        for (auto &a : vecAsteroids)
-            if (IsPointInsideCircle(a.x, a.y, a.nSize, player.x, player.y))
-            {
-                bDead = true; // Uh oh...
-                audio.Play(sfx.at("lose"));
-            }
-                
+		//move Poppy's body
+		poppyOrigin.x = (leftFoot.x + rightFoot.x) / 2.0f;
 
-        // Fire Bullet in direction of player
-        if (GetKey(olc::SPACE).bReleased)
-        {
-            vecBullets.push_back({ 0, player.x, player.y, 150.0f * sinf(player.angle), -150.0f * cosf(player.angle), 100.0f });
-            audio.Play(sfx.at("laser"));
-        }
-            
 
-        // Update and draw asteroids
-        for (auto &a : vecAsteroids)
-        {
-            // VELOCITY changes POSITION (with respect to time)
-            a.x += a.dx * fElapsedTime;
-            a.y += a.dy * fElapsedTime;
-            a.angle += 0.5f * fElapsedTime; // Add swanky rotation :)
+		//state management and state-dependent logic
+		std::string stateString;
+		switch (gameState) {
+			case GameState::COUNTDOWN: {
+				stateString = "Countdown";
+				DrawStringCentered("Walkies", 5, {0, 70}, olc::RED);
+				DrawStringCentered(std::to_string(((int) timeLeft) + 1), 5);
+				DrawStringCentered("Game", 5, {0, -60}, olc::RED);
+				if (timeLeft < 0) gameState = GameState::PLAYING;
+				break;
+			}
+			case GameState::PLAYING: {
+				stateString = "Playing";
 
-            // Asteroid coordinates are kept in game space (toroidal mapping)
-            WrapCoordinates(a.x, a.y, a.x, a.y);
+				if (timeLeft > -1) {
+					DrawStringCentered("RUN!", 6);
+				}
 
-            // Draw Asteroids
-            DrawWireFrameModel(vecModelAsteroid, a.x, a.y, a.angle, (float)a.nSize, olc::YELLOW);	
-        }
+				DrawStringCentered(std::to_string(accTime - countDown), 1, {0, 100});
 
-        // Any new asteroids created after collision detection are stored
-        // in a temporary vector, so we don't interfere with the asteroids
-        // vector iterator in the for(auto)
-        std::vector<sSpaceObject> newAsteroids;
+				float leniency = footSize * 3;
+				if (poppyOrigin.x > ScreenWidth() - leniency) {
+					scoreTime = accTime - countDown;
+					gameState = GameState::END;
+					leftFootClickPos = {0, 0};
+					rightFootClickPos = {0, 0};
+					leftFootClicked = false;
+					rightFootClicked = false;
+				}
+				break;
+			}
+			case GameState::END: {
+				stateString = "End";
+				DrawStringCentered("You win!", 4, {0, 40});
+				DrawStringCentered("Time: " + std::to_string(scoreTime), 2);
+				DrawStringCentered("Now go brag about your score", 1, {0, -25});
+				DrawStringCentered("And get your friends to play it, too!", 1, {0, -35});
+				break;
+			}
+		}
 
-        // Update Bullets
-        for (auto &b : vecBullets)
-        {
-            b.x += b.dx * fElapsedTime;
-            b.y += b.dy * fElapsedTime;
-            WrapCoordinates(b.x, b.y, b.x, b.y);
-            b.angle -= 1.0f * fElapsedTime;
+		DrawString(10, 10, stateString, olc::Pixel(255, 255, 255, 20));
 
-            // Check collision with asteroids
-            for (auto &a : vecAsteroids)
-            {
-                //if (IsPointInsideRectangle(a.x, a.y, a.x + a.nSize, a.y + a.nSize, b.x, b.y))
-                if(IsPointInsideCircle(a.x, a.y, a.nSize, b.x, b.y))
-                {
-                    // Asteroid Hit - Remove bullet
-                    // We've already updated the bullets, so force bullet to be offscreen
-                    // so it is cleaned up by the removal algorithm. 
-                    b.x = -100;
-
-                    // Create child asteroids
-                    if (a.nSize > 4)
-                    {
-                        float angle1 = ((float)rand() / (float)RAND_MAX) * 6.283185f;
-                        float angle2 = ((float)rand() / (float)RAND_MAX) * 6.283185f;
-                        newAsteroids.push_back({ (int)a.nSize >> 1 ,a.x, a.y, 30.0f * sinf(angle1), 30.0f * cosf(angle1), 0.0f });
-                        newAsteroids.push_back({ (int)a.nSize >> 1 ,a.x, a.y, 30.0f * sinf(angle2), 30.0f * cosf(angle2), 0.0f });
-                    }
-
-                    // Remove asteroid - Same approach as bullets
-                    a.x = -100;
-                    nScore += 100; // Small score increase for hitting asteroid
-                    audio.Play(sfx.at("explosion"));
-                }
-            }
-        }
-
-        // Append new asteroids to existing vector
-        for(auto a:newAsteroids)
-            vecAsteroids.push_back(a);
-
-        // Clear up dead objects - They are out of game space
-
-        // Remove asteroids that have been blown up
-        if (vecAsteroids.size() > 0)
-        {
-            auto i = remove_if(vecAsteroids.begin(), vecAsteroids.end(), [&](sSpaceObject o) { return (o.x < 0); });
-            if (i != vecAsteroids.end())
-                vecAsteroids.erase(i);
-        }
-
-        if (vecAsteroids.empty()) // If no asteroids, level complete! :) - you win MORE asteroids!
-        {
-            // Level Clear
-            nScore += 1000; // Large score for level progression
-            vecAsteroids.clear();
-            vecBullets.clear();
-
-            // Add two new asteroids, but in a place where the player is not, we'll simply
-            // add them 90 degrees left and right to the player, their coordinates will
-            // be wrapped by th enext asteroid update
-        vecAsteroids.push_back({ (int)16, 80.0f * sinf(player.angle - 3.14159f/2.0f) + player.x,
-                                            80.0f * cosf(player.angle - 3.14159f/2.0f) + player.y,
-                                            60.0f * sinf(player.angle), 60.0f*cosf(player.angle), 0.0f });
-
-        vecAsteroids.push_back({ (int)16, 80.0f * sinf(player.angle + 3.14159f/2.0f) + player.x,
-                                            80.0f * cosf(player.angle + 3.14159f/2.0f) + player.y,
-                                            60.0f * sinf(-player.angle), 60.0f*cosf(-player.angle), 0.0f });
-        }
-
-        // Remove bullets that have gone off screen
-        if (vecBullets.size() > 0)
-        {
-            auto i = remove_if(vecBullets.begin(), vecBullets.end(), [&](sSpaceObject o) { return (o.x < 1 || o.y < 1 || o.x >= ScreenWidth() - 1 || o.y >= ScreenHeight() - 1); });
-            if (i != vecBullets.end())
-                vecBullets.erase(i);
-        }
-
-        // Draw Bullets
-        for (auto b : vecBullets)
-            Draw(b.x, b.y);
-
-        // Draw Ship
-        DrawWireFrameModel(vecModelShip, player.x, player.y, player.angle);
-
-        // Draw Score
-        DrawString(2, 2, "SCORE: " + std::to_string(nScore));
-        
-        return !GetKey(olc::ESCAPE).bPressed;
-    }
-
-    void DrawWireFrameModel(const std::vector<std::pair<float, float>> &vecModelCoordinates, float x, float y, float r = 0.0f, float s = 1.0f, olc::Pixel col = olc::WHITE)
-    {
-        // pair.first = x coordinate
-        // pair.second = y coordinate
-        
-        // Create translated model vector of coordinate pairs
-        std::vector<std::pair<float, float>> vecTransformedCoordinates;
-        int verts = vecModelCoordinates.size();
-        vecTransformedCoordinates.resize(verts);
-
-        // Rotate
-        for (int i = 0; i < verts; i++)
-        {
-            vecTransformedCoordinates[i].first = vecModelCoordinates[i].first * cosf(r) - vecModelCoordinates[i].second * sinf(r);
-            vecTransformedCoordinates[i].second = vecModelCoordinates[i].first * sinf(r) + vecModelCoordinates[i].second * cosf(r);
-        }
-
-        // Scale
-        for (int i = 0; i < verts; i++)
-        {
-            vecTransformedCoordinates[i].first = vecTransformedCoordinates[i].first * s;
-            vecTransformedCoordinates[i].second = vecTransformedCoordinates[i].second * s;
-        }
-
-        // Translate
-        for (int i = 0; i < verts; i++)
-        {
-            vecTransformedCoordinates[i].first = vecTransformedCoordinates[i].first + x;
-            vecTransformedCoordinates[i].second = vecTransformedCoordinates[i].second + y;
-        }
-
-        // Draw Closed Polygon
-        for (int i = 0; i < verts + 1; i++)
-        {
-            int j = (i + 1);
-            DrawLine(vecTransformedCoordinates[i % verts].first, vecTransformedCoordinates[i % verts].second, 
-                vecTransformedCoordinates[j % verts].first, vecTransformedCoordinates[j % verts].second, col);
-        }
-    }
+		if (timeLeft > -5) {
+			DrawStringCentered("Move your feet by click-dragging them", 1, {0, -110});
+		}
+		return true;
+	}
 };
 
-
-int main()
-{
-    OneLoneCoder_Asteroids game;
-    if(game.Construct(320, 180, 4, 4))
-        game.Start();
-
-    return 0;
+int main() {
+	WalkiesGame game;
+	if (game.Construct(310, 240, 2, 2, false, true))
+		game.Start();
+	return 0;
 }
-
