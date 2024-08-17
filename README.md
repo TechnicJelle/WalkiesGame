@@ -1,5 +1,8 @@
 # Walkies Game
 
+A tiny walking simulator game made for the [olc::CodeJam 2024](https://itch.io/jam/olc-codejam-2024) (Theme: Run)  
+See if you can run to the other side the fastest!
+
 This game was initially developed in [PGEtinker](https://pgetinker.com/), and then copied over to a local project, based on Moros1138's [olcPixelGameEngine-ProjectTemplate](https://github.com/Moros1138/pge-template-project)
 
 You can play it online, right in your browser, here: https://pgetinker.com/s/X2pdaNPGKH  
